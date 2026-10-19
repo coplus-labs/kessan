@@ -1,4 +1,4 @@
-/* 動く決算報告資料 固定プログラム（コプラス） 版：v1
+/* 動く決算報告資料 固定プログラム（コプラス） 版：v1.1.0
    使い方：HTMLに window.KESSAN={data:{…},text:{…}} を書き、このファイルを読み込む。
    数字はすべて data から計算する。文章の中の数字は {差し込み記号} で書く。 */
 (function(){
@@ -85,7 +85,7 @@ function CF(i){const st=[
  return{i,st,start:bs.cash[i-1],end:bs.cash[i],sl:"期首\n現預金",el:"期末\n現預金",ocf:sum(st.slice(0,6).map(x=>x.v)),icf:st[6].v,fcf:st[7].v,gap};}
 const SGK=SGI.map(x=>x.k);
 function PW(a,b){const st=[{k:"sales",l:"売上高",v:S[b]-S[a]},{k:"cogs",l:"売上原価",v:-(pl.cogs[b]-pl.cogs[a])}];
- const g=SGK.map(k=>({k,l:LB[k],v:-(pl[k][b]-pl[k][a])})).sort((x,y)=>Math.abs(y.v)-Math.abs(x.v));
+ const wr=t=>t.length>4?t.slice(0,Math.ceil(t.length/2))+"\n"+t.slice(Math.ceil(t.length/2)):t;const g=SGK.map(k=>({k,l:wr(LB[k]),v:-(pl[k][b]-pl[k][a])})).sort((x,y)=>Math.abs(y.v)-Math.abs(x.v));
  const rest=g.slice(5);st.push(...g.slice(0,5));if(rest.length)st.push({k:"rest",l:`その他${rest.length}科目`,v:sum(rest.map(x=>x.v)),items:rest});
  const gap=pl.op[b]-pl.op[a]-sum(st.map(x=>x.v));if(gap)st.push({k:"gap",l:"端数・その他",v:gap});
  return{a,b,st,start:pl.op[a],end:pl.op[b],sl:`${PD[a]}\n営業利益`,el:`${PD[b]}\n営業利益`};}
@@ -122,25 +122,26 @@ const TOK={
  "自己資本比率_当期":pc(er[2]),"自己資本比率_前期":pc(er[1]),"自己資本比率_前々期":pc(er[0]),"自己資本比率_推移":trR(er),"自己資本比率_動き":rateW(er),
  "総資産_当期":fm(bs.ta[2])+"百万円","総資産_2期増減率":f1s((bs.ta[2]/bs.ta[0]-1)*100)+"%"};
 const TX=KS.text||{};
-function fill(str,where,max,dig){if(str==null)return"";str=String(str);
+function fill(str,where,max,dig){if(str==null)return"";str=String(str).replace(/｜/g,"|").replace(/\s*\|\s*/g,"|");
+ if(/\{[^{}]*_動き\}(?![まてる、|])/.test(str))warn("要修正",`${where}：{…_動き} の後は「ました」「ています」「、」で続けてください「${str.slice(0,40)}」`);
  const bare=str.replace(/\{[^{}]*\}/g,"").replace(/売上100円|3期|1ポイント/g,"");
  if(!dig&&/[0-9０-９]/.test(bare))warn("要修正",`${where}：数字が直接書かれています（差し込み記号を使ってください）「${str.slice(0,40)}」`);
- if(/続け|続い|続く|保っ|保ち|保つ|維持|一貫|横ばい/.test(bare))warn("要確認",`${where}：傾向の言葉は {…_動き} の記号で書いてください「${str.slice(0,40)}」`);
+ if(!dig&&/続け|続い|続く|保っ|保ち|保つ|維持|一貫|横ばい/.test(bare))warn("要確認",`${where}：傾向の言葉は {…_動き} の記号で書いてください「${str.slice(0,40)}」`);
  const out=str.replace(/\{([^{}]*)\}/g,(m,k)=>{if(k in TOK){if(TOK[k]==="xx")warn("要修正",`${where}：{${k}} はこの決算書では使えません`);return TOK[k]}warn("要修正",`${where}：知らない差し込み記号 {${k}}`);return"xx"});
  if(max&&out.replace(/\|/g,"").length>max)warn("要確認",`${where}：${max}字を超えています（${out.replace(/\|/g,"").length}字）「${out.replace(/\|/g,"").slice(0,40)}」`);
  return out}
-const ftx=(s,w,mx)=>esc(fill(s,w,mx));
+const ftx=(s,w,mx)=>esc(fill(s,w,mx).replace(/\|/g,""));
 /* ---------- 論点の種類（数字と根拠は固定プログラムが出す） ---------- */
 const ISSUE_TYPES={
  cost_rate:{card:"cost",ask:"cost"},gp_rate:{card:"cost",ask:"cost"},sga_rate:{card:"op",ask:"sga"},
  ar_turn:{card:"ar",ask:"ar"},inv_turn:{card:null,ask:"inv"},debt:{card:"cash",ask:"debt"}};
 const ISS=(Array.isArray(TX.issues)?TX.issues:[]).slice(0,3).map((x,i)=>{const ty=ISSUE_TYPES[x&&x.type]?x.type:null;if(!ty)warn("要修正",`論点${NUM[i]}：type が「${x&&x.type}」です（cost_rate・gp_rate・sga_rate・ar_turn・inv_turn・debt から選ぶ）`);
- return{t:fill(x&&x.t,`論点${NUM[i]}の題`,16),type:ty||"gp_rate",why:fill(x&&x.why,`論点${NUM[i]}の説明`,60)}});
+ return{t:fill(x&&x.t,`論点${NUM[i]}の題`,16).replace(/\|/g,""),type:ty||"gp_rate",why:fill(x&&x.why,`論点${NUM[i]}の説明`,80).replace(/\|/g,"")}});
 if(!ISS.length){warn("要修正","論点（issues）がありません");ISS.push({t:"来期の利益の見通し",type:"gp_rate",why:""})}
 const SECN=[null,"全体像","売上と利益","利益の増減","原価の中身","財務体質","お金の流れ","来期への論点"];
 const SRC=[null,`出所：${PD[0]}〜${PD[2]} 損益計算書・貸借対照表`,`出所：${PD[0]}〜${PD[2]} 損益計算書`,`出所：${PD[0]}〜${PD[2]} 損益計算書${MC?"・製造原価報告書":""}`,`出所：${PD[0]}〜${PD[2]} 損益計算書${MC?"・製造原価報告書":""}`,`出所：${PD[0]}〜${PD[2]} 貸借対照表・損益計算書`,`出所：${PD[0]}〜${PD[2]} 貸借対照表・損益計算書${MC?"・製造原価報告書":""}${capexIn.some(v=>v!=null)?"、状況メモ（設備投資額）":""}`,`出所：${PD[0]}〜${PD[2]} 損益計算書・貸借対照表（試算は当期の費用構造から計算）`];
 const TH=TX.heads||{};
-const HEAD=[null,...[1,2,3,4,5,6,7].map(n=>{let h=fill(TH[n]||TH[String(n)],`${n}ページの見出し`,0);if(!h){warn("要修正",`${n}ページの見出しがありません`);h=SECN[n]}return{s:SECN[n],h:esc(h),src:SRC[n]}})];
+const HEAD=[null,...[1,2,3,4,5,6,7].map(n=>{const hr=TH[n]||TH[String(n)];if(typeof hr==="string"&&/^\s*\{(?!当期\}|前期\}|前々期\}|社名\})/.test(hr))warn("要確認",`${n}ページの見出し：数字の記号から始めず、何の数字かを先に書いてください「${hr.slice(0,40)}」`);let h=fill(hr,`${n}ページの見出し`,0);if(!h){warn("要修正",`${n}ページの見出しがありません`);h=SECN[n]}return{s:SECN[n],h:esc(h),src:SRC[n]}})];
 const COVER=ftx(TX.cover,"表紙の結論",0)||"決算のご報告";
 const TC=TX.cards||{};
 /* ---------- 動きの道具 ---------- */
@@ -233,7 +234,7 @@ PG[1]={build(){const b=frame(1),c=CFS[2];
  T(3100,()=>{$$(".ib,.tg",s).forEach(ping)})}};
 /* ---------- 2 売上と利益 ---------- */
 PG[2]={m:"sales",build(){const b=frame(2);
- b.innerHTML=`<div class="lc" style="width:1150px"><div class="tr rv" data-d="900"><span class="ttl">3期の売上と利益（棒：百万円、線：売上高に対する率）</span><span class="hint">棒・点を押すと内訳 ›</span></div><div class="ctl rv" data-d="900"><div class="seg" id="m2"></div><button class="play" id="pl2">再生（${PD[0]}→${PD[2]}）</button></div><svg id="g2" width="1150" height="662" viewBox="0 0 1150 662"></svg></div><div class="rc box rv" data-d="2300" style="width:552px"><div class="bt">言えること</div><div class="bs">${ftx(TX.say2,"売上と利益の「言えること」",110)}</div><table class="tb roomy" id="t2"></table><div class="note">行を押すと内訳と計算式が出ます。</div></div>`;
+ b.innerHTML=`<div class="lc" style="width:1150px"><div class="tr rv" data-d="900"><span class="ttl">3期の売上と利益（棒：百万円、線：売上高に対する率）</span><span class="hint">棒・点を押すと内訳 ›</span></div><div class="ctl rv" data-d="900"><div class="seg" id="m2"></div><button class="play" id="pl2">再生（${PD[0]}→${PD[2]}）</button></div><svg id="g2" width="1150" height="662" viewBox="0 0 1150 662"></svg></div><div class="rc box rv" data-d="2300" style="width:552px"><div class="bt">言えること</div><div class="bs">${ftx(TX.say2,"売上と利益の「言えること」",150)}</div><table class="tb roomy" id="t2"></table><div class="note">行を押すと内訳と計算式が出ます。</div></div>`;
  seg("#m2",[["sales","売上"],["gp","売上総利益"],["op","営業利益"]],"sales",v=>this.set(v,"morph"));$("#pl2").onclick=()=>this.play();
  const g=$("#g2"),xs=[218,535,852];this.xs=xs;this.top=330;this.bot=600;
  E("line",{x1:40,x2:1010,y1:272,y2:272,stroke:"#D9E1EA"},g);
@@ -270,7 +271,7 @@ PG[3]={pi:1,build(){const b=frame(3);
  set(mode){const d=PWS[this.pi];wfSet(this.W,d,mode,k=>"pw-"+k,x=>x.t==="d"?`${x.l.replace("\n","")}：${fs(x.v)}百万円（営業利益への影響）`:`${x.l.replace("\n"," ")}：${fm(x.v)}百万円`);
   const sg=sum(d.st.filter(x=>x.k!=="sales"&&x.k!=="cogs"&&x.k!=="gap").map(x=>x.v));
   $("#say3").textContent=`売上高が${fm(Math.abs(d.st[0].v))}百万円${d.st[0].v>=0?"増え":"減り"}、売上原価は${fm(Math.abs(d.st[1].v))}百万円${d.st[1].v<=0?"増え":"減り"}、販管費は${fm(Math.abs(sg))}百万円${sg<=0?"増え":"減り"}ました。営業利益は${fs(d.end-d.start)}百万円です。`;
-  const rows=[["start",`${PD[d.a]}の営業利益`,d.start,fm],...d.st.map(x=>[x.k,x.l,x.v,fs]),["end",`${PD[d.b]}の営業利益`,d.end,fm]];
+  const rows=[["start",`${PD[d.a]}の営業利益`,d.start,fm],...d.st.map(x=>[x.k,x.l.replace("\n",""),x.v,fs]),["end",`${PD[d.b]}の営業利益`,d.end,fm]];
   $("#t3").innerHTML=`<tr><th>段（百万円）</th><th>金額</th></tr>`+rows.map(r=>`<tr class="ck${r[0]==="start"||r[0]==="end"?" hl":""}" data-pk="pw-${r[0]}"><td>${esc(r[1])}</td><td class="${r[2]<0?"neg":""}">${r[3](r[2])}</td></tr>`).join("");
   const ok=d.start+sum(d.st.map(x=>x.v))===d.end;
   $("#c3").textContent=`起点 ${fy(d.start)}円 ＋ 各段の合計 ${fy(sum(d.st.map(x=>x.v)))}円 ＝ 終点 ${fy(d.end)}円（${ok?"円単位で一致":"不一致"}）`},
@@ -302,7 +303,7 @@ PG[4]={build(){const b=frame(4);
 const AS=[["cash","現預金",i=>bs.cash[i],"#D5DCE3"],["ar","売掛金",i=>bs.ar[i],"#1F5FA8"],["inv","棚卸資産",i=>bs.inv[i],"#E6EAEF"],["ppe","有形固定資産",i=>bs.ppe[i],"#C4CCD5"],["oth","その他の資産",i=>bs.oth[i],"#E6EAEF"]];
 const LS=[["ap","買掛金",i=>bs.ap[i],"#D5DCE3"],["accr","未払金・その他の負債",i=>bs.acc2[i],"#E6EAEF"],["stl","短期借入金",i=>bs.stl[i],"#A9C6E8"],["ltl","長期借入金",i=>bs.ltl[i],"#A9C6E8"],["na","純資産",i=>bs.na[i],"#6F9CD3"]];
 PG[5]={pi:2,build(){const b=frame(5);
- b.innerHTML=`<div class="lc" style="width:900px"><div class="tr rv" data-d="900"><span class="ttl">貸借対照表の面積図（単位：百万円）</span><span class="hint">面を押すと内訳 ›</span></div><div class="ctl rv" data-d="900"><div class="seg" id="m5"></div><button class="play" id="pl5">再生（${PD[0]}→${PD[2]}）</button></div><svg id="g5" width="900" height="662" viewBox="0 0 900 662"></svg></div><div class="rc box rv" data-d="2600" style="width:800px"><div class="bt">財務の指標</div><div class="bs">${ftx(TX.say5,"財務体質の「言えること」",80)||"面積図は3期とも同じ縮尺です。"}</div><table class="tb roomy" id="t5"></table><div class="note">回転（か月）＝期末残高÷（売上高÷12）。流動比率の流動負債には、1年内返済の長期借入金を含めていません（内訳が決算書に無いため）。</div></div>`;
+ b.innerHTML=`<div class="lc" style="width:900px"><div class="tr rv" data-d="900"><span class="ttl">貸借対照表の面積図（単位：百万円）</span><span class="hint">面を押すと内訳 ›</span></div><div class="ctl rv" data-d="900"><div class="seg" id="m5"></div><button class="play" id="pl5">再生（${PD[0]}→${PD[2]}）</button></div><svg id="g5" width="900" height="662" viewBox="0 0 900 662"></svg></div><div class="rc box rv" data-d="2600" style="width:800px"><div class="bt">財務の指標</div><div class="bs">${ftx(TX.say5,"財務体質の「言えること」",120)||"面積図は3期とも同じ縮尺です。"}</div><table class="tb roomy" id="t5"></table><div class="note">回転（か月）＝期末残高÷（売上高÷12）。流動比率の流動負債には、1年内返済の長期借入金を含めていません（内訳が決算書に無いため）。</div></div>`;
  seg("#m5",PD.map((p,i)=>[i,esc(p)]),2,v=>{this.pi=+v;this.set("morph")});$("#pl5").onclick=()=>this.play();
  const g=$("#g5");this.base=612;this.H=540;this.mx=Math.max(...bs.ta,...bs.tle)||1;
  this.cols=[[AS,110],[LS,480]].map(([L,x])=>({x,it:L.map(s=>{const r=st(E("rect",{fill:s[3],class:"hov ck",stroke:"#fff","stroke-width":2},g),{x,y:this.base,width:330,height:0});pk(r,"b-"+s[0]);
@@ -398,7 +399,7 @@ const ASK0={
  cash:["手元資金として、最低これだけは置いておきたいという額はありますか","入金と支払の時期がずれて、資金が苦しくなる月はありますか"],
  op:["利益が動いた理由について、社長の実感と合っていますか","来期の営業利益の目標はどのくらいをお考えですか"]};
 const TA=TX.ask||{};
-const ASK={};Object.keys(ASK0).forEach(k=>{const a=Array.isArray(TA[k])?TA[k].filter(Boolean).slice(0,3).map((x,j)=>fill(x,`社長に聞きたいこと（${k}）`,70,1)):[];ASK[k]=a.length?a:ASK0[k]});
+const ASK={};Object.keys(ASK0).forEach(k=>{const a=Array.isArray(TA[k])?TA[k].filter(Boolean).slice(0,3).map((x,j)=>fill(x,`社長に聞きたいこと（${k}）`,70,1).replace(/\|/g,"")):[];ASK[k]=a.length?a:ASK0[k]});
 function askOf(k){return ASK[k]||ASK0.op}
 const TS=TX.say||{};
 const sayOf=(key,def)=>TS[key]?fill(TS[key],`パネルの一言（${key}）`,80):def;
@@ -418,9 +419,9 @@ function PS0(key){const sec=HEAD[cur]?HEAD[cur].s:"",pr=PWS[PG[3].pi],c=CFS[PG[6
   if(k==="sales")return{c:`${sec} › 売上高`,s:`売上高が${fs(s.v)}百万円動き、営業利益を同じ額だけ動かす段です。`,h:hh,r:[r2("売上高",S)],f:[`段＝${PD[b]}売上高−${PD[a]}売上高＝${fy(S[b])}−${fy(S[a])}＝${fy(s.v)}円`],a:askOf("sales"),src};
   if(k==="cogs"){const rows=MC?[r2("材料費",mc.mat),r2("外注加工費",mc.out),r2("製造労務費",mc.labor),r2("製造原価の減価償却費",mc.mdep),r2("製造経費（その他）",mc.mexp),r2("在庫の増減ほか",mc.adj),r2("売上原価",pl.cogs)]:[r2("売上原価",pl.cogs)];
    return{c:`${sec} › 売上原価`,s:`売上原価は${fm(Math.abs(s.v))}百万円${s.v<=0?"増えました":"減りました"}${MC?`。うち材料費は${fs(mc.mat[b]-mc.mat[a])}百万円です`:""}。`,h:hh,r:rows,f:[...(MC?["売上原価＝当期総製造費用＋期首棚卸高−期末棚卸高"]:[]),`段＝−（${fy(pl.cogs[b])}−${fy(pl.cogs[a])}）＝${fy(s.v)}円`],a:[askOf("cost")[0],...(MC?[askOf("out")[0]]:[])],src}}
-  if(k==="rest")return{c:`${sec} › ${s.l}`,s:`影響の小さい${s.items.length}科目をまとめた段で、合計${fs(s.v)}百万円です。`,h:hh,r:s.items.map(x=>r2(LB[x.k],pl[x.k])),f:[`段＝−（各科目の増減の合計）＝${fy(s.v)}円`],a:askOf("sga"),src};
+  if(k==="rest")return{c:`${sec} › ${s.l.replace("\n","")}`,s:`影響の小さい${s.items.length}科目をまとめた段で、合計${fs(s.v)}百万円です。`,h:hh,r:s.items.map(x=>r2(LB[x.k],pl[x.k])),f:[`段＝−（各科目の増減の合計）＝${fy(s.v)}円`],a:askOf("sga"),src};
   if(k==="gap")return{c:`${sec} › 端数・その他`,s:"内訳の合計と営業利益の差額です。",h:hh,r:[["差額","","",fk(s.v)]],f:["営業利益の増減−（各段の合計）"],a:askOf("op"),src};
-  if(s){const kd=(SGI.find(x=>x.k===k)||{}).kind;return{c:`${sec} › ${s.l}`,s:`${s.l}は${fm(Math.abs(s.v))}百万円${s.v<=0?"増え、営業利益をその分押し下げました":"減り、営業利益をその分押し上げました"}。`,h:hh,r:[r2(s.l,pl[k]),r2("販管費の合計",pl.sga)],f:[`段＝−（${fy(pl[k][b])}−${fy(pl[k][a])}）＝${fy(s.v)}円`],a:kd==="pers"?askOf("labor"):askOf("sga"),src}}}
+  if(s){const kd=(SGI.find(x=>x.k===k)||{}).kind,sl=s.l.replace("\n","");return{c:`${sec} › ${sl}`,s:`${sl}は${fm(Math.abs(s.v))}百万円${s.v<=0?"増え、営業利益をその分押し下げました":"減り、営業利益をその分押し上げました"}。`,h:hh,r:[r2(sl,pl[k]),r2("販管費の合計",pl.sga)],f:[`段＝−（${fy(pl[k][b])}−${fy(pl[k][a])}）＝${fy(s.v)}円`],a:kd==="pers"?askOf("labor"):askOf("sga"),src}}}
  if(key.startsWith("c-")){const k=key.slice(2),src=`${PD[0]}〜${PD[2]} 損益計算書${MC?"・製造原価報告書":""}`,p=I3.map(per),pr100=a=>["売上100円あたり（円）",...a.map(f1)];
   if(k==="pers"){const a=I3.map(pers),rows=[...SGI.filter(x=>x.kind==="pers").map(x=>rw(x.l,x.v)),...(MC&&mc.labor.some(v=>v)?[rw("製造労務費",mc.labor)]:[]),rw("人件費の合計",a),pr100(I3.map(i=>a[i]/S[i]*100))];
    return{c:`${sec} › 人件費`,s:`人件費は売上100円あたり${I3.map(i=>f1(a[i]/S[i]*100)).join("→")}円です。`,h:H3,r:rows,f:[`人件費＝販管費の人件費${MC&&mc.labor.some(v=>v)?"＋製造労務費":""}（${PD[2]}：${fy(a[2])}円）`,`売上100円あたり＝人件費÷売上高×100`],a:askOf("labor"),src}}
@@ -537,9 +538,11 @@ function setStatic(){STATIC=location.hash==="#static"||matchMedia("(prefers-redu
 document.title=document.title||`${NAME} ${PD[2]} 決算のご報告`;
 PG.forEach(p=>p.build());setStatic();fit();addEventListener("resize",fit);
 secs[0].classList.add("on");nav();PG[0].enter();
-function layoutChk(){for(let n=1;n<8;n++){const h=$("h2",secs[n]);if(h&&h.scrollWidth>h.clientWidth+2)warn("要修正",`${n}ページの見出しが1行に収まりません（はみ出し ${h.scrollWidth-h.clientWidth}px）「${h.textContent}」`)}
- const cv=$(".cv-c",secs[0]);if(cv&&cv.offsetHeight>130)warn("要修正",`表紙の結論が3行以上になっています「${cv.textContent}」`);
- $$(".card",secs[1]).forEach((e,i)=>{if(e.scrollHeight>e.clientHeight+2)warn("要修正",`カード${i+1}の一言が枠に収まりません「${e.textContent}」`)});
+/* 収まらないときは文字を少し小さくして収める。それでも収まらないときだけ確認表示 */
+const shrink=(e,from,to,bad)=>{if(!e)return;for(let f=from;f>=to&&bad();f-=2){e.style.fontSize=f+"px"}};
+function layoutChk(){for(let n=1;n<8;n++){const h=$("h2",secs[n]);if(h){shrink(h,50,36,()=>h.scrollWidth>h.clientWidth+2);h.style.lineHeight="70px"}if(h&&h.scrollWidth>h.clientWidth+2)warn("要修正",`${n}ページの見出しが1行に収まりません（はみ出し ${h.scrollWidth-h.clientWidth}px）「${h.textContent}」`)}
+ const cv=$(".cv-c",secs[0]);if(cv){cv.style.right="88px";shrink(cv,42,30,()=>cv.offsetHeight>parseFloat(getComputedStyle(cv).fontSize)*3.2)}if(cv&&cv.offsetHeight>parseFloat(getComputedStyle(cv).fontSize)*3.2)warn("要修正",`表紙の結論が3行以上になっています「${cv.textContent}」`);
+ $$(".card",secs[1]).forEach((e,i)=>{const t=$(".cs",e);shrink(t,20,15,()=>e.scrollHeight>e.clientHeight+2);if(e.scrollHeight>e.clientHeight+2)warn("要修正",`カード${i+1}の一言が枠に収まりません「${e.textContent}」`)});
  const b2=$(".box .bs",secs[2]),b5=$(".box .bs",secs[5]);[[b2,"売上と利益の「言えること」"],[b5,"財務体質の「言えること」"]].forEach(([e,nm])=>{if(e&&e.offsetHeight>200)warn("要確認",`${nm}が長すぎます（5行を超えています）`)});
  showChk()}
 (document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(()=>setTimeout(layoutChk,300));

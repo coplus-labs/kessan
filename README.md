@@ -9,7 +9,7 @@ HTMLに数字と文章を入れ、このファイルを読み込みます。
 
 ```html
 <script>window.KESSAN={"data":{…},"text":{…}};</script>
-<script src="https://cdn.jsdelivr.net/gh/coplus-labs/kessan@v1.0.0/kessan-v1.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/coplus-labs/kessan@v1.1.0/kessan-v1.js"></script>
 ```
 
 - 数字・グラフ・計算はすべて data から計算します
@@ -22,6 +22,7 @@ HTMLに数字と文章を入れ、このファイルを読み込みます。
 | 版 | 内容 |
 |---|---|
 | v1.0.0 | 最初の版 |
+| v1.1.0 | 見出し・表紙・カードが収まらないときに文字を小さくして収める。文章の書き方の確認を追加 |
 
 一度公開した版は書き換えません。直すときは新しい版番号で出します。
 
